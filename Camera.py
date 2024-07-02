@@ -1,53 +1,57 @@
 import numpy as np
 from abc import ABC, abstractmethod
-from Controller import controller
 
 class ICamera(ABC):
-    def __init__(self, camera:str):
-        self.controller = controller
+    def __init__(self, core, camera):
+        self.core = core
         self.camera = camera
         self.snapped_image = None
-        self.controller.set_camera_device(self.camera)
+        self.core.set_camera_device(self.camera)
 
     def set_option(self, option:str = None, value:str = None):
-        self.controller.set_property(self.camera, option, value)
+        self.core.set_property(self.camera, option, value)
 
     def set_exposure(self, val:int = 15):
-        self.controller.set_exposure(val)
+        self.core.set_exposure(val)
 
     @abstractmethod
     def capture(self) -> np.array:
         pass
 
-
 class Camera(ICamera):
-    def __init__(self, camera:str='AmScope', exposure:int=15):
-        super().__init__(camera)
-        self.width = self.controller.get_image_width()
-        self.height = self.controller.get_image_height()
+    def __init__(self, core, camera:str='AmScope', exposure:int=15):
+        super().__init__(core, camera)
         self.set_exposure(exposure)
 
     def capture(self) -> np.array:
-        self.controller.snap_image()
-        img = self.controller.get_image()
+        self.core.snap_image()
+        img = self.core.get_image()
+        
+        # Get the current image width and height
+        self.width = self.core.get_image_width()
+        self.height = self.core.get_image_height()
+        
+        byte_depth = self.core.get_bytes_per_pixel()
+        total_pixels = self.width * self.height
 
-        byte_depth = self.controller.get_bytes_per_pixel()
-
-        if byte_depth == 1:
-            img = np.reshape(img, (self.height, self.width)).astype(np.uint8)
-        elif byte_depth == 2:
-            img = np.reshape(img, (self.height, self.width)).astype(np.uint16)
+        if len(img) == total_pixels * byte_depth:
+            if byte_depth == 1:
+                img = np.frombuffer(img, dtype=np.uint8).reshape((self.height, self.width))
+            elif byte_depth == 2:
+                img = np.frombuffer(img, dtype=np.uint16).reshape((self.height, self.width))
+            else:
+                raise ValueError(f'Invalid byte depth: {byte_depth}')
+        elif len(img) == total_pixels * 3:  # RGB image
+            img = np.frombuffer(img, dtype=np.uint8).reshape((self.height, self.width, 3))
         else:
-            raise ValueError(f'Invalid byte depth: {byte_depth}')
+            raise ValueError(f'Unexpected image size: {len(img)} bytes')
         
         self.snapped_image = img
-
         return self.snapped_image
 
-
 class SpectralCamera(ICamera):
-    def __init__(self, camera:str='Andor'):
-        super().__init__(camera)
+    def __init__(self, core, camera:str='Andor'):
+        super().__init__(core, camera)
     
     def capture(self) -> np.array:
         # Placeholder implementation

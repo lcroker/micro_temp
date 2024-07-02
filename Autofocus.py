@@ -1,11 +1,11 @@
-import tifffile as tiff
-import numpy as np
-import pandas as pd
 from abc import ABC, abstractmethod
 import os
-from Camera import ICamera, Camera, SpectralCamera
-from Lamp import Lamp
-from Stage import Stage
+import numpy as np
+import tifffile as tiff
+import pandas as pd
+from camera import ICamera, Camera, SpectralCamera
+from stage import Stage
+from lamp import Lamp
 
 class Autofocus(ABC):
     def __init__(self, camera: ICamera, stage: Stage, lamp: Lamp, image_dir="Autofocus"):
@@ -94,10 +94,7 @@ class Phase(Autofocus):
 
         return self.start + self.step * min_index
 
-class Laser(Autofocus):
-    def focus(self, start: int, end: int, step: float) -> float:
-        pass
-
 class RamanSpectra(Autofocus):
     def focus(self, start: int, end: int, step: float) -> float:
+        # Placeholder implementation
         pass
