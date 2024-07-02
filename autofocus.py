@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
 import os
-from Camera import ICamera, Camera, SpectralCamera
-from Lamp import Lamp
-from Stage import Stage
+from camera import ICamera, Camera, SpectralCamera
+from lamp import Lamp
+from stage import Stage
 
 class Autofocus(ABC):
     def __init__(self, camera: ICamera, stage: Stage, lamp: Lamp, image_dir="Autofocus"):

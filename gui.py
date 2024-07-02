@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QComboBox, QTextEdit, QHBoxLayout
 from PyQt5.QtGui import QPixmap, QImage
 import sys
-from Microscope import Microscope
-from Autofocus import Amplitude, Phase, RamanSpectra
-from Controller import controller
+from microscope import Microscope
+from autofocus import Amplitude, Phase, RamanSpectra
+from controller import controller
 import numpy as np
 
 class MicroscopeControlApp(QMainWindow):

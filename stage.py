@@ -1,4 +1,4 @@
-from Controller import controller
+from controller import controller
 
 class Stage:
     def __init__(self):

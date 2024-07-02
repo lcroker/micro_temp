@@ -1,6 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
-from Controller import controller
+from controller import controller
 
 class ICamera(ABC):
     def __init__(self, camera:str):

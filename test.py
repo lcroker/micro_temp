@@ -1,7 +1,7 @@
 # Test Script
-from Controller import controller
-from Microscope import Microscope
-from Autofocus import Amplitude, Phase, RamanSpectra
+from controller import controller
+from microscope import Microscope
+from autofocus import Amplitude, Phase, RamanSpectra
 
 controller.config_file = "IX81_LUDL_amscope_Laser532.cfg"
 

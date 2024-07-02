@@ -1,7 +1,7 @@
-from Camera import ICamera, Camera, SpectralCamera
-from Stage import Stage
-from Lamp import Lamp
-from Autofocus import Autofocus
+from camera import ICamera, Camera, SpectralCamera
+from stage import Stage
+from lamp import Lamp
+from autofocus import Autofocus
 
 class Microscope:
 

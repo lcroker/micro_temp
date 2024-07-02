@@ -1,4 +1,4 @@
-from Controller import controller
+from controller import controller
 
 class Lamp:
 
