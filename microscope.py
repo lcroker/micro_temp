@@ -4,6 +4,7 @@ import gc
 import psutil
 import multiprocessing
 from pycromanager import Core, start_headless, stop_headless
+from autofocus import Autofocus, Amplitude, Phase
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -67,6 +68,10 @@ class Microscope:
         self.camera = Camera(self.core)
         self.stage = Stage(self.core)
         self.lamp = Lamp(self.core)
+
+    def auto_focus(self, strategy=Amplitude, start=0, end=10, step=1):
+        self.autofocus = strategy(self.camera, self.stage, self.lamp)
+        return self.autofocus.focus(start, end, step)
 
     def find_java_process(self):
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
