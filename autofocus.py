@@ -1,11 +1,12 @@
+import tifffile as tiff
+import numpy as np
+import pandas as pd
 from abc import ABC, abstractmethod
 import os
-import numpy as np
-import tifffile as tiff
-import pandas as pd
 from camera import ICamera, Camera, SpectralCamera
-from stage import Stage
 from lamp import Lamp
+from stage import Stage
+import time
 
 class Autofocus(ABC):
     def __init__(self, camera: ICamera, stage: Stage, lamp: Lamp, image_dir="Autofocus"):
@@ -22,7 +23,18 @@ class Autofocus(ABC):
         self.end = end
         self.step = step
 
+        self.stage.move(z=start)
         self.lamp.set_on()
+        time.sleep(4)
+        img = self.camera.capture()
+        time.sleep(0.6)
+        img = self.camera.capture()
+        time.sleep(0.6)
+        img = self.camera.capture()
+        time.sleep(0.6)
+        img = self.camera.capture()
+        time.sleep(0.6)
+
 
         for i, z_val in enumerate(np.arange(start, end, step)):
             try:
@@ -94,7 +106,10 @@ class Phase(Autofocus):
 
         return self.start + self.step * min_index
 
+class Laser(Autofocus):
+    def focus(self, start: int, end: int, step: float) -> float:
+        pass
+
 class RamanSpectra(Autofocus):
     def focus(self, start: int, end: int, step: float) -> float:
-        # Placeholder implementation
         pass

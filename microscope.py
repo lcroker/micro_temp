@@ -31,7 +31,7 @@ class Microscope:
         self.camera = None
         self.stage = None
         self.lamp = None
-        self.autofocus = None
+        # self.autofocus = None
         self.java_process = None
         self.initialize_components()
 
@@ -69,9 +69,9 @@ class Microscope:
         self.stage = Stage(self.core)
         self.lamp = Lamp(self.core)
 
-    def auto_focus(self, strategy=Amplitude, start=0, end=10, step=1):
-        self.autofocus = strategy(self.camera, self.stage, self.lamp)
-        return self.autofocus.focus(start, end, step)
+    def auto_focus(self, strategy=Amplitude, start=1000, end=1100, step=1):
+        autofocus = strategy(self.camera, self.stage, self.lamp)
+        return autofocus.focus(start, end, step)
 
     def find_java_process(self):
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
@@ -87,7 +87,7 @@ class Microscope:
             self.camera = None
             self.stage = None
             self.lamp = None
-            self.autofocus = None
+            # self.autofocus = None
 
             # Run the shutdown helper in a separate process
             p = multiprocessing.Process(target=shutdown_core)
