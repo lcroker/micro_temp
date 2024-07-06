@@ -5,6 +5,8 @@ import psutil
 import multiprocessing
 from pycromanager import Core, start_headless, stop_headless
 from autofocus import Autofocus, Amplitude, Phase
+from base_cell_filter import ICellFilter, Isolated
+from base_cell_identifier import ICellIdentifier, CustomCellIdentifier
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -31,7 +33,9 @@ class Microscope:
         self.camera = None
         self.stage = None
         self.lamp = None
-        # self.autofocus = None
+        self.autofocus = None
+        self.cell_identifier = None
+        self.cell_filter = None
         self.java_process = None
         self.initialize_components()
 
@@ -69,10 +73,22 @@ class Microscope:
         self.stage = Stage(self.core)
         self.lamp = Lamp(self.core)
 
-    def auto_focus(self, strategy=Amplitude, start=1000, end=1100, step=1):
-        autofocus = strategy(self.camera, self.stage, self.lamp)
+    # Autofocussing strategy
+    def auto_focus(self, autofocus_strategy=Amplitude, start=1000, end=1100, step=1):
+        autofocus = autofocus_strategy(self.camera, self.stage, self.lamp)
         return autofocus.focus(start, end, step)
-
+    
+    # Cell identification strategy
+    def identify_cells(self, identifier_strategy=CustomCellIdentifier, min_distance=60, threshold_abs=5):
+        cell_identifier = identifier_strategy()
+        return cell_identifier.identify(self.camera.capture(), min_distance, threshold_abs)
+    
+    # Cell filtering strategy
+    def filter_cells(self, cell_xy, filter_strategy=Isolated, n_filtered=10):
+        cell_filter = filter_strategy()
+        return cell_filter.filter(cell_xy, n_filtered)
+    
+    
     def find_java_process(self):
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             if 'java' in proc.info['name'].lower() and any('micro-manager' in arg.lower() for arg in proc.info['cmdline']):

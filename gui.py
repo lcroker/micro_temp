@@ -5,11 +5,15 @@ import time
 import gc
 import numpy as np
 import tifffile as tiff
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QComboBox, QTextEdit, QFileDialog, QMessageBox, QGroupBox
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QLineEdit, QPushButton, QComboBox, QTextEdit, QFileDialog, QMessageBox, 
+                             QGroupBox, QScrollArea, QSizePolicy)
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from microscope import Microscope
-from autofocus import Amplitude
+from autofocus import Amplitude, Phase
+from base_cell_identifier import ICellIdentifier, CustomCellIdentifier
+from base_cell_filter import ICellFilter, Isolated
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -33,119 +37,166 @@ class MicroscopeControlApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Microscope Control")
-        self.setGeometry(100, 100, 1000, 800)
+        self.setGeometry(100, 100, 1200, 800)  # Set a default size
         
         self.mm_app_path = "C:\\Program Files\\Micro-Manager-2.0"
         self.microscope = None
         self.init_thread = None
 
+        # Add dictionaries to store available strategies
+        self.cell_identifier_strategies = {
+            "CustomCellIdentifier": CustomCellIdentifier,
+        }
+        self.cell_filter_strategies = {
+            "Isolated": Isolated,
+        }
+        self.autofocus_strategies = {
+            "Amplitude": Amplitude,
+            "Phase": Phase,
+        }
+
         self.setup_ui()
 
     def setup_ui(self):
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        # Create main widget and layout
+        main_widget = QWidget()
+        main_layout = QHBoxLayout(main_widget)
+        self.setCentralWidget(main_widget)
+
+        # Create a scroll area for the left side (controls)
+        left_scroll_area = QScrollArea()
+        left_scroll_area.setWidgetResizable(True)
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_scroll_area.setWidget(left_widget)
+
+        # Create the right side widget (output)
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        
+        # Set the size policies
+        left_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        right_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        right_widget.setFixedWidth(400)  # Adjust this value as needed
+
+        # Add widgets to the main layout
+        main_layout.addWidget(left_scroll_area, 2)  # Left side takes 2/3 of the space
+        main_layout.addWidget(right_widget, 1)  # Right side takes 1/3 of the space
 
         # Configuration File Selection Section
-        config_group = QGroupBox("Configuration")
-        config_layout = QVBoxLayout()
-        config_group.setLayout(config_layout)
-
-        self.config_file_button = QPushButton("Browse")
-        self.config_file_path = QLineEdit()
-        self.start_headless_button = QPushButton("Start Micro-Manager")
-
-        config_layout.addWidget(self.config_file_button)
-        config_layout.addWidget(self.config_file_path)
-        config_layout.addWidget(self.start_headless_button)
+        config_group = self.create_group_box("Configuration", [
+            ("button", "Browse", "config_file_button"),
+            ("line_edit", "", "config_file_path"),
+            ("button", "Start Micro-Manager", "start_headless_button")
+        ])
 
         # Camera Control Section
-        camera_group = QGroupBox("Camera Control")
-        camera_layout = QVBoxLayout()
-        camera_group.setLayout(camera_layout)
-
-        self.binning_input = QComboBox()
-        self.binning_input.addItems(["1x1", "2x2", "4x4"])
-        self.pixel_type_input = QComboBox()
-        self.pixel_type_input.addItems(["GREY8", "GREY16", "RGB24"])
-        self.exposure_input = QLineEdit()
-        self.set_camera_button = QPushButton("Set Camera Options")
-
-        camera_layout.addWidget(QLabel("Binning"))
-        camera_layout.addWidget(self.binning_input)
-        camera_layout.addWidget(QLabel("Pixel Type"))
-        camera_layout.addWidget(self.pixel_type_input)
-        camera_layout.addWidget(QLabel("Exposure (ms)"))
-        camera_layout.addWidget(self.exposure_input)
-        camera_layout.addWidget(self.set_camera_button)
+        camera_group = self.create_group_box("Camera Control", [
+            ("label", "Binning"),
+            ("combo", ["1x1", "2x2", "4x4"], "binning_input"),
+            ("label", "Pixel Type"),
+            ("combo", ["GREY8", "GREY16", "RGB24"], "pixel_type_input"),
+            ("label", "Exposure (ms)"),
+            ("line_edit", "", "exposure_input"),
+            ("button", "Set Camera Options", "set_camera_button")
+        ])
 
         # Autofocus Control Section
-        autofocus_group = QGroupBox("Autofocus Control")
-        autofocus_layout = QVBoxLayout()
-        autofocus_group.setLayout(autofocus_layout)
-
-        self.start_position_input = QLineEdit()
-        self.end_position_input = QLineEdit()
-        self.step_size_input = QLineEdit()
-        self.autofocus_button = QPushButton("Start Autofocus")
-
-        autofocus_layout.addWidget(QLabel("Start Position"))
-        autofocus_layout.addWidget(self.start_position_input)
-        autofocus_layout.addWidget(QLabel("End Position"))
-        autofocus_layout.addWidget(self.end_position_input)
-        autofocus_layout.addWidget(QLabel("Step Size"))
-        autofocus_layout.addWidget(self.step_size_input)
-        autofocus_layout.addWidget(self.autofocus_button)
+        autofocus_group = self.create_group_box("Autofocus Control", [
+            ("label", "Autofocus Strategy"),
+            ("combo", list(self.autofocus_strategies.keys()), "autofocus_strategy_dropdown"),
+            ("label", "Start Position"),
+            ("line_edit", "", "start_position_input"),
+            ("label", "End Position"),
+            ("line_edit", "", "end_position_input"),
+            ("label", "Step Size"),
+            ("line_edit", "", "step_size_input"),
+            ("button", "Start Autofocus", "autofocus_button")
+        ])
 
         # Stage Control Section
-        stage_group = QGroupBox("Stage Control")
-        stage_layout = QVBoxLayout()
-        stage_group.setLayout(stage_layout)
-
-        self.stage_x_input = QLineEdit()
-        self.stage_y_input = QLineEdit()
-        self.stage_z_input = QLineEdit()
-        self.move_stage_button = QPushButton("Move Stage")
-
-        stage_layout.addWidget(QLabel("X Position"))
-        stage_layout.addWidget(self.stage_x_input)
-        stage_layout.addWidget(QLabel("Y Position"))
-        stage_layout.addWidget(self.stage_y_input)
-        stage_layout.addWidget(QLabel("Z Position"))
-        stage_layout.addWidget(self.stage_z_input)
-        stage_layout.addWidget(self.move_stage_button)
+        stage_group = self.create_group_box("Stage Control", [
+            ("label", "X Position"),
+            ("line_edit", "", "stage_x_input"),
+            ("label", "Y Position"),
+            ("line_edit", "", "stage_y_input"),
+            ("label", "Z Position"),
+            ("line_edit", "", "stage_z_input"),
+            ("button", "Move Stage", "move_stage_button")
+        ])
 
         # Image Capture Section
-        capture_group = QGroupBox("Image Capture")
-        capture_layout = QVBoxLayout()
-        capture_group.setLayout(capture_layout)
+        capture_group = self.create_group_box("Image Capture", [
+            ("button", "Capture Image", "capture_image_button"),
+            ("image", (400, 300), "image_label")
+        ])
 
-        self.capture_image_button = QPushButton("Capture Image")
-        self.image_label = QLabel()
-        self.image_label.setFixedSize(400, 300)
-        self.image_label.setStyleSheet("border: 1px solid black;")
+        # Cell Identification Strategy Section
+        cell_id_group = self.create_group_box("Cell Identification", [
+            ("label", "Cell Identification Strategy"),
+            ("combo", list(self.cell_identifier_strategies.keys()), "cell_id_strategy_dropdown"),
+            ("button", "Apply Cell ID Strategy", "apply_cell_id_strategy_button")
+        ])
 
-        capture_layout.addWidget(self.capture_image_button)
-        capture_layout.addWidget(self.image_label)
+        # Cell Filtering Strategy Section
+        cell_filter_group = self.create_group_box("Cell Filtering", [
+            ("label", "Cell Filtering Strategy"),
+            ("combo", list(self.cell_filter_strategies.keys()), "cell_filter_strategy_dropdown"),
+            ("button", "Apply Cell Filter Strategy", "apply_cell_filter_strategy_button")
+        ])
 
         # Test Script Button
         self.test_script_button = QPushButton("Run Test Script")
 
-        # Output Area
+        # Add all sections to left layout
+        for widget in [config_group, camera_group, autofocus_group, stage_group, capture_group,
+                       cell_id_group, cell_filter_group, self.test_script_button]:
+            left_layout.addWidget(widget)
+
+        # Add a stretch to push everything to the top
+        left_layout.addStretch()
+
+        # Output Area (right side)
+        right_layout.addWidget(QLabel("Output"))
         self.output_area = QTextEdit()
         self.output_area.setReadOnly(True)
-
-        # Add all sections to main layout
-        main_layout.addWidget(config_group)
-        main_layout.addWidget(camera_group)
-        main_layout.addWidget(autofocus_group)
-        main_layout.addWidget(stage_group)
-        main_layout.addWidget(capture_group)
-        main_layout.addWidget(self.test_script_button)
-        main_layout.addWidget(QLabel("Output"))
-        main_layout.addWidget(self.output_area)
+        right_layout.addWidget(self.output_area)
 
         # Connect signals to slots
+        self.connect_signals()
+
+    def create_group_box(self, title, items):
+        group = QGroupBox(title)
+        layout = QVBoxLayout()
+        for item_type, *args in items:
+            if item_type == "label":
+                layout.addWidget(QLabel(args[0]))
+            elif item_type == "line_edit":
+                widget = QLineEdit(args[0])
+                layout.addWidget(widget)
+                if len(args) > 1:
+                    setattr(self, args[1], widget)
+            elif item_type == "button":
+                widget = QPushButton(args[0])
+                layout.addWidget(widget)
+                if len(args) > 1:
+                    setattr(self, args[1], widget)
+            elif item_type == "combo":
+                widget = QComboBox()
+                widget.addItems(args[0])
+                layout.addWidget(widget)
+                if len(args) > 1:
+                    setattr(self, args[1], widget)
+            elif item_type == "image":
+                widget = QLabel()
+                widget.setFixedSize(*args[0])
+                widget.setStyleSheet("border: 1px solid black;")
+                layout.addWidget(widget)
+                setattr(self, args[1], widget)
+        group.setLayout(layout)
+        return group
+
+    def connect_signals(self):
         self.config_file_button.clicked.connect(self.browse_config_file)
         self.start_headless_button.clicked.connect(self.start_micromanager)
         self.set_camera_button.clicked.connect(self.set_camera_options)
@@ -153,6 +204,8 @@ class MicroscopeControlApp(QMainWindow):
         self.move_stage_button.clicked.connect(self.move_stage)
         self.capture_image_button.clicked.connect(self.capture_image)
         self.test_script_button.clicked.connect(self.run_test_script)
+        self.apply_cell_id_strategy_button.clicked.connect(self.apply_cell_id_strategy)
+        self.apply_cell_filter_strategy_button.clicked.connect(self.apply_cell_filter_strategy)
 
     def browse_config_file(self):
         options = QFileDialog.Options()
@@ -203,8 +256,17 @@ class MicroscopeControlApp(QMainWindow):
         start = int(self.start_position_input.text())
         end = int(self.end_position_input.text())
         step = float(self.step_size_input.text())
-        self.output_area.append(f"Starting autofocus: Start={start}, End={end}, Step={step}")
-        result = self.microscope.auto_focus(strategy=Amplitude, start=start, end=end, step=step)
+        strategy_name = self.autofocus_strategy_dropdown.currentText()
+        strategy_class = self.autofocus_strategies[strategy_name]
+        
+        self.output_area.append(f"Starting autofocus with {strategy_name}: Start={start}, End={end}, Step={step}")
+        
+        # Create an instance of the autofocus strategy
+        autofocus_strategy = strategy_class(self.microscope.camera, self.microscope.stage, self.microscope.lamp)
+        
+        # Call the focus method of the strategy
+        result = autofocus_strategy.focus(start, end, step)
+        
         self.output_area.append(f"Autofocus result: Optimal position={result}")
 
     def move_stage(self):
@@ -311,7 +373,6 @@ class MicroscopeControlApp(QMainWindow):
             import traceback
             print(f"Traceback in display_image: {traceback.format_exc()}")
 
-
     def run_test_script(self):
         if not self.microscope:
             QMessageBox.warning(self, "Warning", "Please start Micro-Manager first.")
@@ -323,6 +384,54 @@ class MicroscopeControlApp(QMainWindow):
         self.microscope.camera.set_exposure(17)
         result = self.microscope.auto_focus(strategy=Amplitude, start=1350, end=1400)
         self.output_area.append(f"Test script result: {result}")
+
+    def apply_cell_id_strategy(self):
+        if not self.microscope:
+            QMessageBox.warning(self, "Warning", "Please start Micro-Manager first.")
+            return
+        
+        strategy_name = self.cell_id_strategy_dropdown.currentText()
+        strategy_class = self.cell_identifier_strategies[strategy_name]
+        
+        self.output_area.append(f"Applying Cell Identification Strategy: {strategy_name}")
+        try:
+            # Capture an image
+            image = self.microscope.camera.capture()
+            
+            # Identify cells using the selected strategy
+            identified_cells = self.microscope.identify_cells(identifier_strategy=strategy_class)
+            
+            self.output_area.append(f"Identified {len(identified_cells)} cells.")
+            
+            # You might want to visualize the identified cells on the image here
+            # For now, we'll just display the captured image
+            self.display_image(image)
+        except Exception as e:
+            self.output_area.append(f"Error applying cell identification strategy: {e}")
+
+    def apply_cell_filter_strategy(self):
+        if not self.microscope:
+            QMessageBox.warning(self, "Warning", "Please start Micro-Manager first.")
+            return
+        
+        strategy_name = self.cell_filter_strategy_dropdown.currentText()
+        strategy_class = self.cell_filter_strategies[strategy_name]
+        
+        self.output_area.append(f"Applying Cell Filtering Strategy: {strategy_name}")
+        try:
+            # For this example, we'll assume we have already identified cells
+            # In a real scenario, you might want to chain this with cell identification
+            identified_cells = self.microscope.identify_cells()  # Using default strategy
+            
+            # Filter cells using the selected strategy
+            filtered_cells = self.microscope.filter_cells(identified_cells, filter_strategy=strategy_class)
+            
+            self.output_area.append(f"Filtered down to {len(filtered_cells)} cells.")
+            
+            # You might want to visualize the filtered cells on the image here
+            # For now, we'll just update the output
+        except Exception as e:
+            self.output_area.append(f"Error applying cell filtering strategy: {e}")
 
     def closeEvent(self, event):
         if self.microscope:
