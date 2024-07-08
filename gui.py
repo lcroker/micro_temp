@@ -96,10 +96,6 @@ class MicroscopeControlApp(QMainWindow):
             ("combo", ["1x1", "2x2", "4x4"], "binning_input"),
             ("label", "Pixel Type"),
             ("combo", ["GREY8", "RGB32"], "pixel_type_input"),
-            ("label", "Flip Horizontal"),
-            ("combo", ["FALSE", "TRUE"], "flip_horizontal_input"),
-            ("label", "Flip Vertical"),
-            ("combo", ["FALSE", "TRUE"], "flip_vertical_input"),
             ("label", "Exposure Auto"),
             ("combo", ["0", "1"], "exposure_auto_input"),
             ("label", "Exposure (ms)"),
@@ -251,19 +247,14 @@ class MicroscopeControlApp(QMainWindow):
         try:
             binning = self.binning_input.currentText()
             pixel_type = self.pixel_type_input.currentText()
-            flip_horizontal = self.flip_horizontal_input.currentText()
-            flip_vertical = self.flip_vertical_input.currentText()
             exposure_auto = self.exposure_auto_input.currentText()
             exposure = self.exposure_input.text()
 
             self.output_area.append(f"Setting camera options: Binning={binning}, PixelType={pixel_type}, "
-                                    f"FlipHorizontal={flip_horizontal}, FlipVertical={flip_vertical}, "
                                     f"ExposureAuto={exposure_auto}, Exposure={exposure}ms")
 
             self.microscope.camera.set_option("Binning", binning)
             self.microscope.camera.set_option("PixelType", pixel_type)
-            self.microscope.camera.set_option("FlipHorizontal", flip_horizontal)
-            self.microscope.camera.set_option("FlipVertical", flip_vertical)
             self.microscope.camera.set_option("ExposureAuto", exposure_auto)
             
             if exposure_auto == "0":  # Only set exposure if auto exposure is off
@@ -273,6 +264,7 @@ class MicroscopeControlApp(QMainWindow):
         except Exception as e:
             self.output_area.append(f"Error setting camera options: {str(e)}")
             QMessageBox.warning(self, "Error", f"Failed to set camera options: {str(e)}")
+
 
 
     def start_autofocus(self):
@@ -408,8 +400,15 @@ class MicroscopeControlApp(QMainWindow):
         self.output_area.append("Capturing image...")
         try:
             self.microscope.lamp.set_on()
-            time.sleep(0.5)
-            time.sleep(2)
+            time.sleep(4)
+            image = self.microscope.camera.capture()
+            time.sleep(0.6)
+            image = self.microscope.camera.capture()
+            time.sleep(0.6)
+            image = self.microscope.camera.capture()
+            time.sleep(0.6)
+            image = self.microscope.camera.capture()
+            time.sleep(0.6)
 
             image = self.microscope.camera.capture()
             if image is not None:
@@ -460,7 +459,6 @@ class MicroscopeControlApp(QMainWindow):
             print(f"Error in display_image: {str(e)}")
             import traceback
             print(f"Traceback in display_image: {traceback.format_exc()}")
-
 
 
     def run_test_script(self):
