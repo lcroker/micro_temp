@@ -299,99 +299,6 @@ class MicroscopeControlApp(QMainWindow):
         self.microscope.stage.move(x=x, y=y, z=z)
         self.output_area.append("Finished Moving!")
 
-    # def capture_image(self):
-    #     if not self.microscope:
-    #         QMessageBox.warning(self, "Warning", "Please start Micro-Manager first.")
-    #         return
-    #     self.output_area.append("Capturing image...")
-    #     try:
-    #         # Turn on the lamp
-    #         self.microscope.lamp.set_on()
-    #         time.sleep(0.5)  # Pause for 0.5 seconds to allow the lamp to stabilize
-
-    #         # Additional delay for camera stabilization
-    #         time.sleep(2)  # Adjust as needed based on your camera's requirements
-
-    #         # Capture multiple frames and keep the last one
-    #         # for _ in range(4):
-    #         #     i = 1
-    #         #     image = self.microscope.camera.capture()
-    #         #     time.sleep(0.6)  # Short delay between captures
-    #         #     pre_path = os.path.join('C:\\Users\\Raman1\\Desktop\\luke_github\\super_temp\\', "Captures", f"capture_{i}.tif")
-    #         #     tiff.imwrite(pre_path, image)
-    #         #     i = i + 1
-    #         #     print(i)
-    #         image = self.microscope.camera.capture()
-    #         time.sleep(0.6)  # Short delay between captures
-    #         pre_path = os.path.join('C:\\Users\\Raman1\\Desktop\\luke_github\\super_temp\\', "Captures", f"capture_{1}.tif")
-    #         tiff.imwrite(pre_path, image)
-    #         image = self.microscope.camera.capture()
-    #         time.sleep(0.6)  # Short delay between captures
-    #         pre_path = os.path.join('C:\\Users\\Raman1\\Desktop\\luke_github\\super_temp\\', "Captures", f"capture_{2}.tif")
-    #         tiff.imwrite(pre_path, image)
-    #         image = self.microscope.camera.capture()
-    #         time.sleep(0.6)  # Short delay between captures
-    #         pre_path = os.path.join('C:\\Users\\Raman1\\Desktop\\luke_github\\super_temp\\', "Captures", f"capture_{3}.tif")
-    #         tiff.imwrite(pre_path, image)
-    #         image = self.microscope.camera.capture()
-    #         time.sleep(0.6)  # Short delay between captures
-    #         pre_path = os.path.join('C:\\Users\\Raman1\\Desktop\\luke_github\\super_temp\\', "Captures", f"capture_{4}.tif")
-    #         tiff.imwrite(pre_path, image)
-    #         image = self.microscope.camera.capture()
-    #         time.sleep(0.6)  # Short delay between captures
-    #         pre_path = os.path.join('C:\\Users\\Raman1\\Desktop\\luke_github\\super_temp\\', "Captures", f"capture_{5}.tif")
-    #         tiff.imwrite(pre_path, image)
-
-    #         if image is not None:
-    #             # Debug statement to check the captured image
-    #             print(f"Image captured with shape: {image.shape}, dtype: {image.dtype}")
-    #             self.display_image(image)
-    #             self.output_area.append("Image captured successfully.")
-    #         else:
-    #             self.output_area.append("Failed to capture image.")
-            
-    #         # Turn off the lamp
-    #         self.microscope.lamp.set_off()
-    #     except Exception as e:
-    #         self.output_area.append(f"Error capturing image: {e}")
-    #         print(f"Detailed error in capture_image: {str(e)}")
-    #         import traceback
-    #         print(f"Traceback in capture_image: {traceback.format_exc()}")
-    # 
-    # 
-    # def display_image(self, image):
-    #     try:
-    #         if image is not None:
-    #             if len(image.shape) == 2:
-    #                 height, width = image.shape
-    #                 channels = 1
-    #             elif len(image.shape) == 3:
-    #                 height, width, channels = image.shape
-    #             else:
-    #                 raise ValueError(f"Unexpected image shape: {image.shape}")
-
-    #             bytes_per_line = width * channels
-                
-    #             # Debug statement to check the QImage parameters
-    #             print(f"Creating QImage with width: {width}, height: {height}, channels: {channels}, bytes_per_line: {bytes_per_line}")
-                
-    #             if channels == 1:
-    #                 q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-    #             elif channels == 3:
-    #                 q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_RGB888)
-    #             else:
-    #                 raise ValueError(f"Unsupported number of channels: {channels}")
-
-    #             pixmap = QPixmap.fromImage(q_image)
-    #             self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio))
-    #             self.image_label.setScaledContents(True)
-    #         else:
-    #             print("No image to display")
-    #     except Exception as e:
-    #         print(f"Error in display_image: {str(e)}")
-    #         import traceback
-    #         print(f"Traceback in display_image: {traceback.format_exc()}")
-
 
     def capture_image(self):
         if not self.microscope:
@@ -400,28 +307,13 @@ class MicroscopeControlApp(QMainWindow):
         self.output_area.append("Capturing image...")
         try:
             self.microscope.lamp.set_on()
-            time.sleep(4)
-            image = self.microscope.camera.capture()
-            time.sleep(0.6)
-            image = self.microscope.camera.capture()
-            time.sleep(0.6)
-            image = self.microscope.camera.capture()
-            time.sleep(0.6)
-            image = self.microscope.camera.capture()
-            time.sleep(0.6)
 
             image = self.microscope.camera.capture()
             if image is not None:
                 print(f"Image captured with shape: {image.shape}, dtype: {image.dtype}")
                 self.display_image(image)
                 self.output_area.append("Image captured successfully.")
-                
-                # Save the image
-                pixel_type = self.microscope.camera.core.get_property(self.microscope.camera.camera, "PixelType")
-                file_name = f"capture_{pixel_type}_{time.strftime('%Y%m%d-%H%M%S')}.tif"
-                save_path = os.path.join('C:\\Users\\Raman1\\Desktop\\luke_github\\super_temp\\', "Captures", file_name)
-                tiff.imwrite(save_path, image)
-                self.output_area.append(f"Image saved as {file_name}")
+                self.output_area.append(f"Image saved")
             else:
                 self.output_area.append("Failed to capture image.")
             

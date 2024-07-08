@@ -17,6 +17,7 @@ class Autofocus(ABC):
         self.captures = []
         os.makedirs(os.path.join(self.image_dir, "images"), exist_ok=True)
         os.makedirs(os.path.join(self.image_dir, "spectra"), exist_ok=True)
+        os.makedirs(os.path.join(self.image_dir, "captures"), exist_ok=True)
 
     def zscan(self, start: int, end: int, step: float = 1) -> None:
         self.start = start
