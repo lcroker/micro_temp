@@ -541,6 +541,40 @@ class MicroscopeControlApp(QMainWindow):
         result = self.microscope.auto_focus(strategy=Amplitude, start=1350, end=1400)
         self.output_area.append(f"Test script result: {result}")
 
+
+    def apply_cell_id_strategy(self):
+        if not self.microscope:
+            QMessageBox.warning(self, "Warning", "Please start Micro-Manager first.")
+            return
+        
+        strategy_name = self.cell_id_strategy_dropdown.currentText()
+        strategy_class = self.cell_identifier_strategies[strategy_name]
+        
+        self.output_area.append(f"Applying Cell Identification Strategy: {strategy_name}")
+        try:
+            # Identify cells using the selected strategy
+            identified_cells, marked_image = self.microscope.identify_cells(identifier_strategy=strategy_class)
+            
+            self.output_area.append(f"Identified {len(identified_cells)} cells.")
+            
+            # Display cell coordinates in the output area
+            self.output_area.append("Cell coordinates:")
+            for i, (x, y) in enumerate(identified_cells, 1):
+                self.output_area.append(f"Cell {i}: ({x}, {y})")
+            
+            # Convert the marked image to QImage for display
+            height, width, channel = marked_image.shape
+            bytes_per_line = 3 * width
+            q_image = QImage(marked_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(q_image)
+            self.cell_id_image_label.setPixmap(pixmap.scaled(self.cell_id_image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            
+        except Exception as e:
+            self.output_area.append(f"Error applying cell identification strategy: {e}")
+            QMessageBox.warning(self, "Error", f"An error occurred while applying the cell identification strategy: {str(e)}")
+
+
+    
     def apply_cell_filter_strategy(self):
         if not self.microscope:
             QMessageBox.warning(self, "Warning", "Please start Micro-Manager first.")
@@ -566,33 +600,6 @@ class MicroscopeControlApp(QMainWindow):
         except Exception as e:
             self.output_area.append(f"Error applying cell filter strategy: {e}")
             QMessageBox.warning(self, "Error", f"An error occurred while applying the cell filter strategy: {str(e)}")
-
-
-    def apply_cell_id_strategy(self):
-        if not self.microscope:
-            QMessageBox.warning(self, "Warning", "Please start Micro-Manager first.")
-            return
-        
-        strategy_name = self.cell_id_strategy_dropdown.currentText()
-        strategy_class = self.cell_identifier_strategies[strategy_name]
-        
-        self.output_area.append(f"Applying Cell Identification Strategy: {strategy_name}")
-        try:
-            # Identify cells using the selected strategy
-            identified_cells, marked_image = self.microscope.identify_cells(identifier_strategy=strategy_class)
-            
-            self.output_area.append(f"Identified {len(identified_cells)} cells.")
-            
-            # Convert the marked image to QImage for display
-            height, width, channel = marked_image.shape
-            bytes_per_line = 3 * width
-            q_image = QImage(marked_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(q_image)
-            self.cell_id_image_label.setPixmap(pixmap.scaled(self.cell_id_image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            
-        except Exception as e:
-            self.output_area.append(f"Error applying cell identification strategy: {e}")
-            QMessageBox.warning(self, "Error", f"An error occurred while applying the cell identification strategy: {str(e)}")
 
 
     def closeEvent(self, event):

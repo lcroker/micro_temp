@@ -40,6 +40,7 @@ class Microscope:
         self.cell_identifier = None
         self.cell_filter = None
         self.java_process = None
+        self.cell_coordinates = []  # Initialize an empty list to store coordinates
         self.initialize_components()
 
         # Create the cell_identify directory next to the Autofocus directory
@@ -125,7 +126,7 @@ class Microscope:
         return result
     
     # Cell identification strategy
-    def identify_cells(self, identifier_strategy=CellposeCellIdentifier, **kwargs):
+    def identify_cells(self, identifier_strategy=CustomCellIdentifier, **kwargs):
         cell_identifier = identifier_strategy()
         image = self.camera.capture()
         
@@ -133,7 +134,7 @@ class Microscope:
         if not isinstance(image, np.ndarray):
             image = np.array(image)
         
-        cell_coordinates, marked_image = cell_identifier.identify(image, **kwargs)
+        self.cell_coordinates, marked_image = cell_identifier.identify(image, **kwargs)
         
         # Ensure the marked_image is in the correct format for display
         if len(marked_image.shape) == 2:
@@ -141,13 +142,17 @@ class Microscope:
         elif marked_image.shape[2] == 4:
             marked_image = cv2.cvtColor(marked_image, cv2.COLOR_RGBA2RGB)
         
-        return cell_coordinates, marked_image
+        return self.cell_coordinates, marked_image
+    
+    def get_cell_coordinates(self):
+        return self.cell_coordinates
+    
     
     # Cell filtering strategy
     def filter_cells(self, cell_coordinates, filter_strategy=Isolated, **kwargs):
         filter_instance = filter_strategy()
         return filter_instance.filter(cell_coordinates, **kwargs)
-
+    
     
     def set_option(self, device, property_name, value):
         try:
