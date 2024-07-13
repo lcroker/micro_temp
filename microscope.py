@@ -10,6 +10,7 @@ from lamp import Lamp
 from autofocus import Autofocus, Amplitude, Phase
 from base_cell_filter import ICellFilter, Isolated
 from base_cell_identifier import ICellIdentifier, CustomCellIdentifier, CellposeCellIdentifier
+from base_cell_aquisition import ICellAcquisition, CustomCellAcquisition
 import cv2
 import numpy as np
 import os
@@ -42,6 +43,7 @@ class Microscope:
         self.lamp = None
         self.autofocus = None
         self.cell_identifier = None
+        self.cell_acquisition = None
         self.cell_filter = None
         self.java_process = None
         self.cell_coordinates = []  # Initialize an empty list to store coordinates
@@ -152,8 +154,7 @@ class Microscope:
             raise ValueError("The provided class must be a subclass of ICellIdentifier")
         self.cell_identifier = cell_identifier_strategy_class(self.directory_setup)
         print(f"Cell identifier strategy set: {self.cell_identifier}")
-
-    
+   
     # Cell identification strategy
     def identify_cells(self, **kwargs):
         if not self.cell_identifier:
@@ -210,13 +211,25 @@ class Microscope:
         return cell_coordinates, marked_image
     
     def get_cell_coordinates(self):
-        return self.cell_coordinates    
+        return self.cell_coordinates   
+
+    def set_cell_acquisition_strategy(self, cell_acquisition_strategy_class):
+        print(f"Setting cell acquisition strategy to {cell_acquisition_strategy_class.__name__}")
+        if not issubclass(cell_acquisition_strategy_class, ICellAcquisition):
+            raise ValueError("The provided class must be a subclass of ICellAcquisition")
+        self.cell_acquisition = cell_acquisition_strategy_class(self, self.directory_setup)
+        print(f"Cell acquisition strategy set: {self.cell_acquisition}")
+
+    def acquire_cell(self, cell_coordinates):
+        if self.cell_acquisition is None:
+            raise ValueError("Cell acquisition strategy is not set.")
+        return self.cell_acquisition.acquire_cell(cell_coordinates)
     
     # Cell filtering strategy
     def filter_cells(self, cell_coordinates, filter_strategy=Isolated, **kwargs):
         filter_instance = filter_strategy()
         return filter_instance.filter(cell_coordinates, **kwargs)
-    
+
     # previously set_option
     def set_microscope_property(self, device, property_name, value):
         try:
@@ -245,14 +258,12 @@ class Microscope:
             logging.error(f"Error getting {device} {property_name}: {str(e)}")
             raise
 
-
     def find_java_process(self):
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             if 'java' in proc.info['name'].lower() and any('micro-manager' in arg.lower() for arg in proc.info['cmdline']):
                 self.java_process = proc
                 logging.info(f"Found Java process for Micro-Manager: PID {proc.pid}")
                 break
-
 
     def shutdown(self):
         logging.info("Initiating Micro-Manager shutdown...")
@@ -298,7 +309,6 @@ class Microscope:
             logging.info("Micro-Manager shutdown complete.")
         except Exception as e:
             logging.error(f"Unexpected error during shutdown: {e}")
-
 
     def __del__(self):
         if hasattr(self, 'core') and self.core is not None:

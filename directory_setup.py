@@ -18,7 +18,8 @@ class DirectorySetup:
             self.recorded_data_dir,
             self.recorded_data_dir / "autofocus",
             self.recorded_data_dir / "captured_images",
-            self.recorded_data_dir / "identified_cell_images"
+            self.recorded_data_dir / "identified_cell_images",
+            self.recorded_data_dir / "acquired_cell_images"
         ]
 
         # Create each directory in the list
