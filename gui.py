@@ -16,6 +16,7 @@ from microscope import Microscope
 from autofocus import Amplitude, Phase
 from base_cell_identifier import ICellIdentifier, CustomCellIdentifier, CellposeCellIdentifier
 from base_cell_filter import ICellFilter, Isolated
+from base_cell_aquisition import ICellAcquisition, CustomCellAcquisition
 from directory_setup import DirectorySetup, setup_directories
 
 
@@ -40,6 +41,37 @@ class MicroManagerInitThread(QThread):
             logging.error(f"Error in MicroManagerInitThread: {e}", exc_info=True)
             self.finished.emit(None, f"Error starting Micro-Manager: {str(e)}")
 
+
+class InteractiveCellSelectionWidget(QWidget):
+    cell_selected = pyqtSignal(tuple)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QVBoxLayout(self)
+        self.image_label = QLabel(self)
+        self.layout.addWidget(self.image_label)
+        self.cell_coordinates = []
+        self.selected_cell = None
+
+    def set_image(self, image):
+        height, width, channel = image.shape
+        bytes_per_line = 3 * width
+        q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(q_image)
+        self.image_label.setPixmap(pixmap)
+        self.image_label.setScaledContents(True)
+
+    def set_cell_coordinates(self, coordinates):
+        self.cell_coordinates = coordinates
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            x = event.x()
+            y = event.y()
+            self.selected_cell = min(self.cell_coordinates, key=lambda cell: (cell[0] - x)**2 + (cell[1] - y)**2)
+            self.cell_selected.emit(self.selected_cell)
+
+
 class MicroscopeControlApp(QMainWindow):
     def __init__(self, directory_setup):
         super().__init__()
@@ -55,6 +87,10 @@ class MicroscopeControlApp(QMainWindow):
         self.cell_identifier_strategies = {
             "CustomCellIdentifier": CustomCellIdentifier,
             "CellposeCellIdentifier": CellposeCellIdentifier,
+        }
+        self.cell_acquisition_strategies = {
+            "CustomCellAcquisition": CustomCellAcquisition,
+            # Add other cell acquisition strategies here as needed
         }
         self.cell_filter_strategies = {
             "Isolated": Isolated,
@@ -81,6 +117,7 @@ class MicroscopeControlApp(QMainWindow):
         self.create_camera_tab()
         self.create_stage_tab()
         self.create_cell_identification_tab()
+        self.create_cell_acquisition_tab()
         self.create_cell_filtering_tab()
 
         # Add tabs to tab widget
@@ -211,6 +248,36 @@ class MicroscopeControlApp(QMainWindow):
         layout.addStretch()
         self.tab_widget.addTab(cell_id_widget, "Cell Identification")
 
+    def create_cell_acquisition_tab(self):
+        cell_acquisition_widget = QWidget()
+        layout = QVBoxLayout(cell_acquisition_widget)
+
+        # Add dropdown for cell acquisition strategy
+        self.cell_acquisition_strategy_dropdown = QComboBox()
+        self.cell_acquisition_strategy_dropdown.addItems(self.cell_acquisition_strategies.keys())
+        layout.addWidget(QLabel("Cell Acquisition Strategy:"))
+        layout.addWidget(self.cell_acquisition_strategy_dropdown)
+
+        # Interactive cell selection widget
+        self.cell_acquisition_widget = InteractiveCellSelectionWidget()
+        self.cell_acquisition_widget.cell_selected.connect(self.on_cell_selected)
+        layout.addWidget(self.cell_acquisition_widget)
+
+        # Acquire cell button
+        self.acquire_cell_button = QPushButton("Acquire Selected Cell")
+        self.acquire_cell_button.clicked.connect(self.acquire_selected_cell)
+        layout.addWidget(self.acquire_cell_button)
+
+        # Add the new image label for displaying acquired cell images
+        self.acquired_cell_image_label = QLabel()
+        self.acquired_cell_image_label.setFixedSize(400, 300)
+        self.acquired_cell_image_label.setStyleSheet("border: 1px solid black;")
+        layout.addWidget(self.acquired_cell_image_label)
+
+        layout.addStretch()
+        self.tab_widget.addTab(cell_acquisition_widget, "Cell Acquisition")
+
+
     def create_cell_filtering_tab(self):
         cell_filter_widget = QWidget()
         layout = QVBoxLayout(cell_filter_widget)
@@ -274,7 +341,7 @@ class MicroscopeControlApp(QMainWindow):
                 layout.addLayout(hbox)
         group.setLayout(layout)
         return group
-
+    
     def connect_signals(self):
         self.config_file_button.clicked.connect(self.browse_config_file)
         self.start_headless_button.clicked.connect(self.start_micromanager)
@@ -285,6 +352,7 @@ class MicroscopeControlApp(QMainWindow):
         self.test_script_button.clicked.connect(self.run_test_script)
         self.apply_cell_id_strategy_button.clicked.connect(self.apply_cell_id_strategy)
         self.apply_cell_filter_strategy_button.clicked.connect(self.apply_cell_filter_strategy)
+
 
     def browse_config_file(self):
         options = QFileDialog.Options()
@@ -401,7 +469,7 @@ class MicroscopeControlApp(QMainWindow):
             import traceback
             print(f"Traceback in capture_image: {traceback.format_exc()}")
 
-    def display_image(self, image):
+    def display_image(self, image, label=None):
         try:
             if image is not None:
                 height, width = image.shape[:2]
@@ -420,8 +488,12 @@ class MicroscopeControlApp(QMainWindow):
                 print(f"Creating QImage with width: {width}, height: {height}, channels: {3 if len(image.shape) == 3 else 1}, bytes_per_line: {bytes_per_line}")
                 
                 pixmap = QPixmap.fromImage(q_image)
-                self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio))
-                self.image_label.setScaledContents(True)
+                
+                # Use the provided label or default to self.image_label
+                display_label = label if label is not None else self.image_label
+                
+                display_label.setPixmap(pixmap.scaled(display_label.size(), Qt.KeepAspectRatio))
+                display_label.setScaledContents(True)
             else:
                 print("No image to display")
         except Exception as e:
@@ -468,6 +540,9 @@ class MicroscopeControlApp(QMainWindow):
             
             # Identify cells using the selected strategy
             identified_cells, marked_image = self.microscope.identify_cells()
+                    
+            self.cell_acquisition_widget.set_image(marked_image)
+            self.cell_acquisition_widget.set_cell_coordinates(identified_cells)
             
             self.output_area.append(f"Identified {len(identified_cells)} cells.")
             
@@ -486,6 +561,59 @@ class MicroscopeControlApp(QMainWindow):
         except Exception as e:
             self.output_area.append(f"Error applying cell identification strategy: {e}")
             QMessageBox.warning(self, "Error", f"An error occurred while applying the cell identification strategy: {str(e)}")
+
+    def on_cell_selected(self, cell_coordinates):
+        self.output_area.append(f"Cell selected at coordinates: {cell_coordinates}")
+
+    # def acquire_selected_cell(self):
+    #     if not self.microscope.cell_acquisition:
+    #         self.microscope.set_cell_acquisition_strategy(CustomCellAcquisition)
+        
+    #     selected_cell = self.cell_acquisition_widget.selected_cell
+    #     if selected_cell:
+    #         try:
+    #             # Capture initial image for debugging
+    #             initial_image = self.microscope.capture_image()
+    #             self.microscope.cell_acquisition.log_image_info("Initial image", initial_image)
+                
+    #             # Calculate movement
+    #             image_center_x = self.microscope.camera.width // 2
+    #             image_center_y = self.microscope.camera.height // 2
+    #             dx = (image_center_x - selected_cell[0]) * self.microscope.cell_acquisition.pixel_to_um_ratio
+    #             dy = (image_center_y - selected_cell[1]) * self.microscope.cell_acquisition.pixel_to_um_ratio
+                
+    #             # Display debug info
+    #             self.microscope.cell_acquisition.display_debug_info(initial_image, selected_cell, dx, dy)
+                
+    #             acquired_image, filepath = self.microscope.acquire_cell(selected_cell)
+    #             self.display_image(acquired_image, self.acquired_cell_image_label)
+    #             self.output_area.append(f"Acquired image for cell at {selected_cell}")
+    #             self.output_area.append(f"Image saved at: {filepath}")
+    #             self.output_area.append(f"Stage moved by approximately: ({dx:.2f}, {dy:.2f}) micrometers")
+    #         except Exception as e:
+    #             self.output_area.append(f"Error acquiring cell: {str(e)}")
+    #             logging.exception("Error in acquire_selected_cell method")
+    #             self.output_area.append("Check the console for detailed error information.")
+    #     else:
+    #         self.output_area.append("No cell selected for acquisition")
+    def acquire_selected_cell(self):
+        if not self.microscope.cell_acquisition:
+            strategy_class = self.cell_acquisition_strategies[self.cell_acquisition_strategy_dropdown.currentText()]
+            self.microscope.set_cell_acquisition_strategy(strategy_class)
+        
+        selected_cell = self.cell_acquisition_widget.selected_cell
+        if selected_cell:
+            try:
+                acquired_image, filepath = self.microscope.acquire_cell(selected_cell)
+                self.display_image(acquired_image, self.acquired_cell_image_label)
+                self.output_area.append(f"Acquired image for cell at {selected_cell}")
+                self.output_area.append(f"Image saved at: {filepath}")
+            except Exception as e:
+                self.output_area.append(f"Error acquiring cell: {str(e)}")
+                logging.exception("Error in acquire_selected_cell method")
+        else:
+            self.output_area.append("No cell selected for acquisition")
+
 
     def apply_cell_filter_strategy(self):
         if not self.microscope:
